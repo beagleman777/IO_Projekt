@@ -1,6 +1,7 @@
 # IO_Projekt
 Projekt na IO, by Bartłomiej Gaweł, Wojciech Legierski, Jakub Korona
 
+python 3.11
 Instalacja:
 pip install -r requirements.txt
 
