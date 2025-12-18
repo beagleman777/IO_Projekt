@@ -1,0 +1,6 @@
+streamlit
+numpy
+face_recognition
+opencv-python
+qrcode[pil]
+Pillow
