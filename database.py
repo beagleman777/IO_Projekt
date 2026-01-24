@@ -30,7 +30,7 @@ def add_user(name, user_id, face_encoding_bytes):
 
 
 def update_user_status(qr_code_id, is_active):
-    """Nadawanie/odbieranie uprawnień"""
+    #Nadawanie/odbieranie uprawnień
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("UPDATE users SET is_active = ? WHERE qr_code_id = ?", (1 if is_active else 0, qr_code_id))
@@ -68,7 +68,7 @@ def get_all_users():
 
 
 def cleanup_old_logs():
-    """Wymóg RODO: usuwanie danych starszych niż 6 miesięcy"""
+    #Usuwanie danych starszych niż 6 miesięcy
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     six_months_ago = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S")
