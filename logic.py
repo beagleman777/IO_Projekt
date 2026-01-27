@@ -16,7 +16,10 @@ except ImportError:
 def _load_image(image_file):
     try:
         image_file.seek(0)
-        return face_recognition.load_image_file(image_file)
+        img = face_recognition.load_image_file(image_file)
+        if len(img.shape) == 3 and img.shape[2] == 4:
+            img = img[:, :, :3]
+        return img
     except Exception:
         return None
 
