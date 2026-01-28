@@ -66,6 +66,24 @@ def get_all_users():
     return data
 
 
+def get_all_logs():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT timestamp, user_id, status, failure_image 
+            FROM logs 
+            ORDER BY timestamp DESC
+        """)
+        data = c.fetchall()
+        return data
+    except Exception as e:
+        print(f"Błąd pobierania logów: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def cleanup_old_logs():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()

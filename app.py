@@ -43,34 +43,30 @@ with logs:
             logs = database.get_all_logs()
             df_data = []
             incidents = []
-        
             for log in logs:
-                df_data.append([log[1], log[2], log[3]])
-                if log[4] is not None:
+                df_data.append([log[1], log[0], log[2]])
+                if log[3] is not None:
                     incidents.append(log)
-
             st.subheader("Pełna historia wejść")
             df = pd.DataFrame(df_data, columns=["User ID", "Czas", "Status"])
-        
             def highlight_status(val):
                 color = 'red' if 'MISMATCH' in val or 'NOT_FOUND' in val or 'REVOKED' in val else 'green'
                 return f'color: {color}'
-
             st.dataframe(df.style.map(highlight_status, subset=['Status']), use_container_width=True)
             if incidents:
                 st.divider()
                 st.subheader("Wykryte Incydenty (Dowody Zdjęciowe)")
                 st.warning(f"Liczba wykrytych prób nieautoryzowanego dostępu: {len(incidents)}")
                 for inc in incidents:
-                    with st.expander(f"{inc[2]} - Próba wejścia na ID: {inc[1]} ({inc[3]})"):
+                    with st.expander(f"{inc[0]} - Próba wejścia na ID: {inc[1]} ({inc[2]})"):
                         col_a, col_b = st.columns([1, 2])
                         with col_a:
-                            if inc[4]:
-                                st.image(BytesIO(inc[4]), caption="Zdjęcie z kamery w momencie odrzucenia")
+                            if inc[3]:
+                                st.image(BytesIO(inc[3]), caption="Zdjęcie z kamery w momencie odrzucenia")
                         with col_b:
-                            st.write(f"**Data:** {inc[2]}")
-                            st.write(f"**Status błędu:** {inc[3]}")
-                            st.error("Dostęp zablokowany przez system.")
+                            st.write(f"**Data:** {inc[0]}")
+                            st.write(f"**Status błędu:** {inc[2]}")
+                            st.error("Dostęp zablokowany przez system.")   
     elif logs_password:
         st.error("Błędne hasło.")
 

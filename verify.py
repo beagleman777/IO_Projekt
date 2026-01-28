@@ -38,7 +38,6 @@ elif st.session_state.auth_step == 2:
         qr_code = st.session_state.scanned_qr_code
         success, msg, _ = logic.verify_biometric_only(qr_code, face_cam)
         if success:
-            st.balloons()
             st.success(f"{msg}")
             st.image(face_cam, width=200, caption="Zdjęcie wejściowe")
             if st.button("Następna osoba"):
@@ -47,3 +46,4 @@ elif st.session_state.auth_step == 2:
                 st.rerun()
         else:
             st.error(f"ODMOWA: {msg}")
+            
