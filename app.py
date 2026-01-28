@@ -5,36 +5,60 @@ import database
 from io import BytesIO
 
 st.set_page_config(page_title="SecureGate 3000", layout="wide")
-st.title("🏭 System Kontroli Dostępu - SecureGate")
+st.title("System Kontroli Dostępu")
 
 ADMIN_PASSWORD = "admin"
 
-tab1, tab2, tab3, tab4 = st.tabs(["🔐 Weryfikacja", "📝 Rejestracja", "📊 Logi i Incydenty", "👥 Zarządzanie Uprawnieniami"])
+tab1, tab2, tab3, tab4 = st.tabs(["Weryfikacja", "Rejestracja", "Logi i Incydenty", "Zarządzanie Uprawnieniami"])
 
 with tab1:
     st.header("Punkt Kontrolny")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("1. Skanuj Przepustkę (QR)")
-        qr_cam = st.camera_input("Kamera QR", key="qr_cam")
-    
-    with col2:
-        st.subheader("2. Weryfikacja Biometryczna")
-        face_cam = st.camera_input("Kamera Twarzy", key="face_cam")
-
-    if qr_cam and face_cam:
-        with st.spinner("Weryfikacja w toku..."):
-            scanned_id = logic.decode_qr_from_image(qr_cam)
-            if scanned_id:
-                st.info(f"Zeskanowano ID: {scanned_id}")
-                is_granted, message, user_name = logic.verify_access(scanned_id, face_cam)
-                if is_granted:
-                    st.success(f"✅ DOSTĘP PRZYZNANY. {message}")
-                    st.balloons()
+    if 'auth_step' not in st.session_state:
+        st.session_state.auth_step = 1
+    if 'scanned_user' not in st.session_state:
+        st.session_state.scanned_user = None
+    if 'scanned_qr_code' not in st.session_state:
+        st.session_state.scanned_qr_code = None
+    if st.session_state.auth_step == 2:
+        if st.button("Anuluj / Inna osoba"):
+            st.session_state.auth_step = 1
+            st.session_state.scanned_user = None
+            st.session_state.scanned_qr_code = None
+            st.rerun()
+    if st.session_state.auth_step == 1:
+        st.info("KROK 1/2: Zeskanuj QR przepustki")
+        qr_cam = st.camera_input("Kamera QR", key="qr_cam_step1")
+        if qr_cam:
+            qr_code_text = logic.decode_qr_from_image(qr_cam)
+            if qr_code_text:
+                is_valid, msg, user_name = logic.check_qr_validity(qr_code_text)
+                if is_valid:
+                    st.session_state.scanned_qr_code = qr_code_text
+                    st.session_state.scanned_user = user_name
+                    st.session_state.auth_step = 2
+                    st.rerun()
                 else:
-                    st.error(f"⛔ DOSTĘP ZABLOKOWANY. {message}")
+                    st.error(msg)
             else:
-                st.warning("Nie udało się odczytać kodu QR.")
+                st.warning("Nie wykryto kodu QR.")
+    elif st.session_state.auth_step == 2:
+        st.success(f"Przepustka: **{st.session_state.scanned_user}**")
+        st.warning("KROK 2/2: Spójrz w kamerę, aby potwierdzić tożsamość.")
+        face_cam = st.camera_input("Kamera Biometryczna", key="face_cam_step2")
+        if face_cam:
+            qr_code = st.session_state.scanned_qr_code
+            success, msg, _ = logic.verify_biometric_only(qr_code, face_cam)
+            if success:
+                st.balloons()
+                st.success(f"{msg}")
+                st.image(face_cam, width=200, caption="Zdjęcie wejściowe")
+                if st.button("Następna osoba"):
+                    st.session_state.auth_step = 1
+                    st.session_state.scanned_user = None
+                    st.rerun()
+            else:
+                st.error(f"ODMOWA: {msg}")
+
 
 with tab2:
     st.header("Panel HR - Nowy Pracownik")
@@ -56,6 +80,7 @@ with tab2:
                 st.warning("Wypełnij wszystkie pola.")
     elif password:
         st.error("Błędne hasło.")
+
 
 with tab3:
     st.header("Dziennik Zdarzeń")
@@ -79,9 +104,8 @@ with tab3:
         st.dataframe(df.style.map(highlight_status, subset=['Status']), use_container_width=True)
         if incidents:
             st.divider()
-            st.subheader("🚨 Wykryte Incydenty (Dowody Zdjęciowe)")
+            st.subheader("Wykryte Incydenty (Dowody Zdjęciowe)")
             st.warning(f"Liczba wykrytych prób nieautoryzowanego dostępu: {len(incidents)}")
-
             for inc in incidents:
                 with st.expander(f"{inc[2]} - Próba wejścia na ID: {inc[1]} ({inc[3]})"):
                     col_a, col_b = st.columns([1, 2])
@@ -92,6 +116,7 @@ with tab3:
                         st.write(f"**Data:** {inc[2]}")
                         st.write(f"**Status błędu:** {inc[3]}")
                         st.error("Dostęp zablokowany przez system.")
+
 
 with tab4:
     st.header("Zarządzanie Pracownikami")

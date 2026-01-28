@@ -42,10 +42,21 @@ def decode_qr_from_image(image_file):
     file_bytes = np.asarray(bytearray(image_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, 1)
     image_file.seek(0)
-    if img is None: return None
+    if img is None: 
+        return None
     detector = cv2.QRCodeDetector()
     data, _, _ = detector.detectAndDecode(img)
     return data
+
+
+def check_qr_validity(scanned_qr_id):
+    user_data = database.get_user_by_qr(scanned_qr_id)
+    if not user_data:
+        return False, "Nieznany kod QR. Spróbuj ponownie.", None
+    _, user_name, is_active = user_data
+    if not is_active:
+        return False, "Dostęp zablokowany przez administratora.", user_name
+    return True, "Kod poprawny.", user_name
 
 
 def process_registration(name, user_id, image_file):
@@ -68,37 +79,42 @@ def process_registration(name, user_id, image_file):
         return False, str(e)
 
 
-def verify_access(scanned_qr_id, current_face_image_file):
-    img_bytes = _get_bytes(current_face_image_file)
+def verify_biometric_only(scanned_qr_id, current_face_image_file):
+    current_face_image_file.seek(0)
+    image_bytes = current_face_image_file.read()
+    current_face_image_file.seek(0)
     user_data = database.get_user_by_qr(scanned_qr_id)
     if not user_data:
-        database.log_access_attempt(scanned_qr_id, "USER_NOT_FOUND", img_bytes)
-        return False, "Nieznany QR.", None
-    
-    blob, name, active = user_data
-    if not active:
-        database.log_access_attempt(scanned_qr_id, "ACCESS_REVOKED", img_bytes)
-        return False, "Zablokowany.", name
-    
+        return False, "Błąd sesji. Zeskanuj QR ponownie.", None
+        
+    saved_encoding_blob, user_name, _ = user_data
     if not BIOMETRICS_AVAILABLE:
-        database.log_access_attempt(scanned_qr_id, "DEV_SKIP")
-        return True, f"Witaj {name} (DEV)", name
+        database.log_access_attempt(scanned_qr_id, "SUCCESS_DEV")
+        return True, f"Weryfikacja pozytywna (DEV)", user_name
 
     try:
-        curr_img = _load_image(current_face_image_file)
-        curr_enc = face_recognition.face_encodings(curr_img)
-        if not curr_enc:
-            database.log_access_attempt(scanned_qr_id, "NO_FACE", img_bytes)
-            return False, "Brak twarzy.", name
+        try:
+            current_face_image_file.seek(0)
+            current_image = face_recognition.load_image_file(current_face_image_file)
+        except:
+            return False, "Błąd pliku obrazu.", user_name
+
+        current_encodings = face_recognition.face_encodings(current_image)
         
-        saved_enc = np.frombuffer(blob, dtype=np.float64)
-        match = face_recognition.compare_faces([saved_enc], curr_enc[0], tolerance=0.5)
+        if not current_encodings:
+            database.log_access_attempt(scanned_qr_id, "NO_FACE_DETECTED", image_bytes)
+            return False, "Nie wykryto twarzy. Stań prosto.", user_name
+            
+        saved_encoding = np.frombuffer(saved_encoding_blob, dtype=np.float64)
+        match = face_recognition.compare_faces([saved_encoding], current_encodings[0], tolerance=0.5)
+        
         if match[0]:
             database.log_access_attempt(scanned_qr_id, "SUCCESS")
-            return True, f"Witaj, {name}!", name
+            return True, f"Dostęp przyznany!", user_name
         else:
-            database.log_access_attempt(scanned_qr_id, "MISMATCH", img_bytes)
-            return False, "Twarz niezgodna!", name
+            database.log_access_attempt(scanned_qr_id, "FACE_MISMATCH", image_bytes)
+            return False, "Twarz niezgodna z kodem QR!", user_name
+            
     except Exception as e:
-        return False, f"Err: {str(e)}", name
+        return False, f"Błąd systemu: {str(e)}", user_name
     
