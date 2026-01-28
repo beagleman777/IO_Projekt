@@ -7,63 +7,16 @@ from io import BytesIO
 st.set_page_config(page_title="SecureGate 3000", layout="wide")
 st.title("System Kontroli Dostępu")
 
-ADMIN_PASSWORD = "admin"
+REGISTRATION_PASSWORD = "rejestracja"
+LOGS_PASSWORD = "logi"
+MANAGEMENT_PASSWORD = "zarzadzanie"
 
-tab1, tab2, tab3, tab4 = st.tabs(["Weryfikacja", "Rejestracja", "Logi i Incydenty", "Zarządzanie Uprawnieniami"])
+registration, logs, management = st.tabs(["Rejestracja", "Logi i Incydenty", "Zarządzanie Uprawnieniami"])
 
-with tab1:
-    st.header("Punkt Kontrolny")
-    if 'auth_step' not in st.session_state:
-        st.session_state.auth_step = 1
-    if 'scanned_user' not in st.session_state:
-        st.session_state.scanned_user = None
-    if 'scanned_qr_code' not in st.session_state:
-        st.session_state.scanned_qr_code = None
-    if st.session_state.auth_step == 2:
-        if st.button("Anuluj / Inna osoba"):
-            st.session_state.auth_step = 1
-            st.session_state.scanned_user = None
-            st.session_state.scanned_qr_code = None
-            st.rerun()
-    if st.session_state.auth_step == 1:
-        st.info("KROK 1/2: Zeskanuj QR przepustki")
-        qr_cam = st.camera_input("Kamera QR", key="qr_cam_step1")
-        if qr_cam:
-            qr_code_text = logic.decode_qr_from_image(qr_cam)
-            if qr_code_text:
-                is_valid, msg, user_name = logic.check_qr_validity(qr_code_text)
-                if is_valid:
-                    st.session_state.scanned_qr_code = qr_code_text
-                    st.session_state.scanned_user = user_name
-                    st.session_state.auth_step = 2
-                    st.rerun()
-                else:
-                    st.error(msg)
-            else:
-                st.warning("Nie wykryto kodu QR.")
-    elif st.session_state.auth_step == 2:
-        st.success(f"Przepustka: **{st.session_state.scanned_user}**")
-        st.warning("KROK 2/2: Spójrz w kamerę, aby potwierdzić tożsamość.")
-        face_cam = st.camera_input("Kamera Biometryczna", key="face_cam_step2")
-        if face_cam:
-            qr_code = st.session_state.scanned_qr_code
-            success, msg, _ = logic.verify_biometric_only(qr_code, face_cam)
-            if success:
-                st.balloons()
-                st.success(f"{msg}")
-                st.image(face_cam, width=200, caption="Zdjęcie wejściowe")
-                if st.button("Następna osoba"):
-                    st.session_state.auth_step = 1
-                    st.session_state.scanned_user = None
-                    st.rerun()
-            else:
-                st.error(f"ODMOWA: {msg}")
-
-
-with tab2:
+with registration:
     st.header("Panel HR - Nowy Pracownik")
-    password = st.text_input("Podaj hasło administratora", type="password", key="reg_pass")
-    if password == ADMIN_PASSWORD:
+    reg_password = st.text_input("Podaj hasło administratora", type="password", key="reg_pass")
+    if reg_password == REGISTRATION_PASSWORD:
         reg_name = st.text_input("Imię i Nazwisko")
         reg_id = st.text_input("ID Pracownika")
         reg_photo = st.camera_input("Zdjęcie do bazy", key="reg_cam")
@@ -78,50 +31,54 @@ with tab2:
                     st.error(msg)
             else:
                 st.warning("Wypełnij wszystkie pola.")
-    elif password:
+    elif reg_password:
         st.error("Błędne hasło.")
 
 
-with tab3:
+with logs:
     st.header("Dziennik Zdarzeń")
-    if st.button("Odśwież logi"):
-        logs = database.get_all_logs()
-        df_data = []
-        incidents = []
+    logs_password = st.text_input("Podaj hasło administratora", type="password", key="logs_pass")
+    if logs_password == LOGS_PASSWORD:
+        if st.button("Odśwież logi"):
+            logs = database.get_all_logs()
+            df_data = []
+            incidents = []
         
-        for log in logs:
-            df_data.append([log[1], log[2], log[3]])
-            if log[4] is not None:
-                incidents.append(log)
+            for log in logs:
+                df_data.append([log[1], log[2], log[3]])
+                if log[4] is not None:
+                    incidents.append(log)
 
-        st.subheader("Pełna historia wejść")
-        df = pd.DataFrame(df_data, columns=["User ID", "Czas", "Status"])
+            st.subheader("Pełna historia wejść")
+            df = pd.DataFrame(df_data, columns=["User ID", "Czas", "Status"])
         
-        def highlight_status(val):
-            color = 'red' if 'MISMATCH' in val or 'NOT_FOUND' in val or 'REVOKED' in val else 'green'
-            return f'color: {color}'
+            def highlight_status(val):
+                color = 'red' if 'MISMATCH' in val or 'NOT_FOUND' in val or 'REVOKED' in val else 'green'
+                return f'color: {color}'
 
-        st.dataframe(df.style.map(highlight_status, subset=['Status']), use_container_width=True)
-        if incidents:
-            st.divider()
-            st.subheader("Wykryte Incydenty (Dowody Zdjęciowe)")
-            st.warning(f"Liczba wykrytych prób nieautoryzowanego dostępu: {len(incidents)}")
-            for inc in incidents:
-                with st.expander(f"{inc[2]} - Próba wejścia na ID: {inc[1]} ({inc[3]})"):
-                    col_a, col_b = st.columns([1, 2])
-                    with col_a:
-                        if inc[4]:
-                            st.image(BytesIO(inc[4]), caption="Zdjęcie z kamery w momencie odrzucenia")
-                    with col_b:
-                        st.write(f"**Data:** {inc[2]}")
-                        st.write(f"**Status błędu:** {inc[3]}")
-                        st.error("Dostęp zablokowany przez system.")
+            st.dataframe(df.style.map(highlight_status, subset=['Status']), use_container_width=True)
+            if incidents:
+                st.divider()
+                st.subheader("Wykryte Incydenty (Dowody Zdjęciowe)")
+                st.warning(f"Liczba wykrytych prób nieautoryzowanego dostępu: {len(incidents)}")
+                for inc in incidents:
+                    with st.expander(f"{inc[2]} - Próba wejścia na ID: {inc[1]} ({inc[3]})"):
+                        col_a, col_b = st.columns([1, 2])
+                        with col_a:
+                            if inc[4]:
+                                st.image(BytesIO(inc[4]), caption="Zdjęcie z kamery w momencie odrzucenia")
+                        with col_b:
+                            st.write(f"**Data:** {inc[2]}")
+                            st.write(f"**Status błędu:** {inc[3]}")
+                            st.error("Dostęp zablokowany przez system.")
+    elif logs_password:
+        st.error("Błędne hasło.")
 
 
-with tab4:
+with management:
     st.header("Zarządzanie Pracownikami")
     password_mgmt = st.text_input("Podaj hasło administratora", type="password", key="mgmt_pass")
-    if password_mgmt == ADMIN_PASSWORD:
+    if password_mgmt == MANAGEMENT_PASSWORD:
         users = database.get_all_users()
         if users:
             df_users = pd.DataFrame(users, columns=["ID Bazy", "Nazwisko", "ID Przepustki", "Aktywny"])
